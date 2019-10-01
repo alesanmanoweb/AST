@@ -1,9 +1,16 @@
-void setup() {
-  // put your setup code here, to run once:
+#include "Webpage.h"
 
+Webpage *webpage;
+
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println(F("Making Webpage"));
+  webpage = new Webpage();
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
-
+void loop()
+{
+  // check for ethernet activity
+  webpage->checkNetwork();
 }

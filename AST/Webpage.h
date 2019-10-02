@@ -7,6 +7,7 @@
 
 #include "GPS.h"
 #include "IMU.h"
+#include "Target.h"
 
 // persistent state info to fetch a TLE from a remote web site incrementally
 struct TLEFetch {
@@ -23,6 +24,7 @@ class Webpage
   public:
     Webpage();
     void checkNetwork();
+    void setUserMessage(const char* msg);
 
   private:
     static constexpr size_t user_message_size = 64;

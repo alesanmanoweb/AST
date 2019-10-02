@@ -36,7 +36,6 @@ void Webpage::checkNetwork()
     return;
   }
 
-  Serial.println("Client connected");
   uint32_t t0 = millis(); // init timeout
   char first_header_line[128]; // first header line (we discard the rest)
   unsigned fhll = 0; // first header line length
@@ -103,12 +102,12 @@ void Webpage::checkNetwork()
   }
   else if(strstr(first_header_line, "POST /start "))
   {
-//    target->setTrackingState(true);
+    target->setTrackingState(true);
     sendEmptyResponse(client);
   }
   else if(strstr(first_header_line, "POST /stop "))
   {
-//    target->setTrackingState(false);
+    target->setTrackingState(false);
     sendEmptyResponse(client);
   }
   else
@@ -119,6 +118,11 @@ void Webpage::checkNetwork()
   // finished
   // Serial.println ("closing client");
   client.stop();
+}
+
+void Webpage::setUserMessage(const char* msg)
+{
+  strncpy(user_message, msg, user_message_size);
 }
 
 /* try to connect to wifi using creds we have in EEPROM
@@ -425,9 +429,9 @@ void Webpage::overrideValue(WiFiClient client)
   if(strcmp (buf, "T_TLE") == 0)
   {
     // T_TLE needs two more lines
-    char *l1 = valu;    // TLE target name is valu
-    char *l2 = &buf[nbuf];  // line 2 begins after valu
-    char *l3 = NULL;    // set when find end of line 2
+    char *l1 = valu; // TLE target name is valu
+    char *l2 = &buf[nbuf]; // line 2 begins after valu
+    char *l3 = NULL; // set when find end of line 2
 
     // scan for two more lines
     uint8_t nlines = 1;
@@ -441,18 +445,18 @@ void Webpage::overrideValue(WiFiClient client)
           l3 = &buf[nbuf];  // line 3 starts next
         }
       }
-      else if(nbuf < sizeof(buf)-1)
+      else if(nbuf < sizeof(buf) - 1)
       {
         buf[nbuf++] = c;
       }
     }
-    if (nlines < 3)
+    if(nlines < 3)
     {
       return; // premature end, let caller close
     }
 
     // new target!
-    //target->setTLE(l1, l2, l3);
+    target->setTLE(l1, l2, l3);
   }
 #if 0
   else if(strcmp (buf, "IP") == 0)
@@ -481,24 +485,21 @@ void Webpage::overrideValue(WiFiClient client)
     nv->put();
     setUserMessage (F("Successfully stored new IP address in EEPROM -- reboot to engage+"));
   }
-  else 
 #endif
-  if(strcmp (buf, "querySite") == 0)
+  else if(strcmp (buf, "querySite") == 0)
   {
     // op wants to look up a target at a web site, valu is target,url
-    startTLEFetch (valu);
+    startTLEFetch(valu);
   }
-#if 0
   else
   {
     // not ours, give to each other subsystem in turn until one accepts
-    if (!circum->overrideValue (buf, valu)
-    && !gimbal->overrideValue (buf, valu)
-    && !target->overrideValue (buf, valu)
-    && !sensor->overrideValue (buf, valu))
-    setUserMessage (F("Bug: unknown override -- see Serial Monitor!"));
+    //if(!gps->overrideValue(buf, valu) && !gimbal->overrideValue(buf, valu) && !target->overrideValue(buf, valu) && !imuA->overrideValue(buf, valu))
+    if(!gps->overrideValue(buf, valu) && !target->overrideValue(buf, valu) && !imuA->overrideValue(buf, valu))
+    {
+      setUserMessage("Bug: unknown override -- see Serial Monitor!");
+    }
   }
-#endif
 }
 
 /* inform each subsystem to send its latest values, including ours
@@ -523,15 +524,15 @@ void Webpage::sendNewValues(WiFiClient client)
     tlef.l0 = NULL; // just send once
   }
 
-//  client.print (F("uptime="));
-//  circum->printSexa (client, millis()/1000.0/3600.0);
-//  circum->printPL (client, Circum::NORMAL);
+  client.print("uptime=");
+  gps->printSexa(client, millis()/1000.0/3600.0);
+  gps->printPL(client, GPS::NORMAL);
 
   // send whatever the other modules want to
   gps->sendNewValues(client);
 //  gimbal->sendNewValues (client);
-  imuA->sendNewValues (client);
-//  target->sendNewValues (client);
+  imuA->sendNewValues(client);
+  target->sendNewValues(client);
 }
 
 /* send the main page, in turn it will send us commands using XMLHttpRequest

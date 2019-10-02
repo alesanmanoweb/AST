@@ -5,6 +5,7 @@
 Webpage *webpage;
 GPS *gps;
 IMU *imuA;
+Target *target;
 
 void setup()
 {
@@ -15,6 +16,8 @@ void setup()
   gps = new GPS();
   Serial.println("Making IMU");
   imuA = new IMU();
+  Serial.println("Making Target");
+  target = new Target();
 }
 
 void loop()
@@ -24,9 +27,10 @@ void loop()
 
   // check for new GPS info
   gps->checkGPS();
+
+  // follow the target
+  target->track();
 }
 
-// leggere sensore 9DOF
-
-// calcolo traiettorie
+// controllare logging, tutti i // e #if etc
 // controllo motori

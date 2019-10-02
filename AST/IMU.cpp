@@ -63,7 +63,7 @@ void IMU::getAzEl(float *azp, float *elp)
 {
   imu::Vector<3> euler = bno->getVector(Adafruit_BNO055::VECTOR_EULER);
   *azp = fmod(euler.x() + gps->magdeclination + 540, 360);
-  *elp = euler.z();
+  *elp = euler.y();
 }
 
 /* process name = value pair

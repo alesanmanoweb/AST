@@ -1,3 +1,5 @@
+#include <Preferences.h>
+
 #include "Webpage.h"
 #include "html.h"
 
@@ -13,12 +15,21 @@ Webpage::Webpage()
   httpServer = new WiFiServer(80);
   httpServer->begin();
   Serial.println(WiFi.localIP());
+
+  memset(user_message, 0, user_message_size);
+  snprintf(user_message, user_message_size, "Hello+");
+
+  memset(&tlef, 0, sizeof(tlef));
+  tlef.running = false;
 }
 
 /* call this occasionally to check for Ethernet activity
  */
 void Webpage::checkNetwork()
 {
+  // do more of remote fetch if active
+  resumeTLEFetch();
+  
   WiFiClient client = httpServer->available();
   if(!client)
   {
@@ -78,11 +89,11 @@ void Webpage::checkNetwork()
   }
   else if(strstr(first_header_line, "GET /getvalues.txt "))
   {
-//    sendNewValues(client);
+    sendNewValues(client);
   }
   else if(strstr(first_header_line, "POST / "))
   {
-//    overrideValue(client);
+    overrideValue(client);
     sendEmptyResponse(client);
   }
   else if(strstr(first_header_line, "POST /reboot "))
@@ -115,15 +126,13 @@ void Webpage::checkNetwork()
  */
 bool Webpage::connectWiFi()
 {
-  // start over
-  // WiFi.disconnect(true);
-  // WiFi.softAPdisconnect(true);
-  delay(400);
-
+  Preferences preferences;
+  preferences.begin("AST", true);
   // configure
   //WiFi.mode(WIFI_STA);
-  WiFi.begin("as2", "bymoonlightweridetenthousandssidebyside");
+  WiFi.begin(preferences.getString("SSID").c_str(), preferences.getString("PSK").c_str());
   //WiFi.config(nv->IP, nv->GW, nv->NM);
+  preferences.end();
 
   // wait for connect
   uint32_t t0 = millis();
@@ -132,7 +141,7 @@ bool Webpage::connectWiFi()
   {
     if (millis() - t0 > timeout)
     {
-      Serial.println (F("Unable to connect to AP"));
+      Serial.println ("Unable to connect to AP");
       return false;
     }
     delay(100);
@@ -179,9 +188,196 @@ void Webpage::scrub(char *s)
   for(scrub_s = s; *s != '\0'; s++)
   {
     if(isalnum(*s))
+    {
       *scrub_s++ = toupper(*s);
+    }
   }
   *scrub_s = '\0';
+}
+
+/* given "sat,URL" search the given URL for the given satellite TLE.
+ * N.B. in order for our web page to continue to function, this method is just the first step, other
+ * steps are done incrementally by resumeTLEFetch().
+ */
+void Webpage::startTLEFetch(char *query_text)
+{
+  // split query at ',' to get sat name and URL
+  char *sat = query_text;
+  char *url = strchr(query_text, ',');
+  if(!url)
+  {
+    snprintf(user_message, user_message_size, "Invalid querySite string: %s!", query_text);
+    return;
+  }
+  *url++ = '\0'; // overwrite ',' with EOS for sat then move to start of url
+
+  // remove leading protocol, if any
+  if(strncmp(url, "http://", 7) == 0)
+  {
+    url += 7;
+  }
+
+  // file name
+  char *path = strchr(url, '/');
+  if(!path)
+  {
+    snprintf(user_message, user_message_size, "Invalid querySite URL: %s!", url);
+    return;
+  }
+  *path++ = '\0'; // overwrite '/' with EOS for server then move to start of path
+
+  // connect
+  tlef.remote = new WiFiClient();
+  if(!tlef.remote->connect(url, 80))
+  {
+    snprintf(user_message, user_message_size, "Failed to connect to %s!", url);
+    delete tlef.remote;
+    return;
+  }
+
+  // send query to retrieve the file containing TLEs
+  // Serial.print(sat); Serial.print(F("@")); Serial.println (url);
+  tlef.remote->print("GET /");
+  tlef.remote->print(path);
+  tlef.remote->print(" HTTP/1.0\r\nContent-Type: text/plain \r\n\r\n");
+
+  // set up so we can resume the search later....
+  scrub(sat);
+  strncpy(tlef.sat, sat, sizeof(tlef.sat)-1);
+  tlef.lineno = 1;
+  tlef.running = true;
+}
+
+/* called to resume fetching a remote web page, started by startTLEFetch().
+ * we are called periodically regardless, do nothing if no fetch is in progress.
+ * we know to run based on whether tlef.remote is connected.
+ */
+
+void Webpage::resumeTLEFetch()
+{
+  // skip if nothing in progress
+  if(!tlef.running)
+  {
+    return;
+  }
+
+#if 0
+while(tlef.remote->available())
+  {
+    char c = tlef.remote->read();
+    Serial.write(c);
+  }
+
+  if(!tlef.remote->connected())
+  {
+    tlef.remote->stop();
+    delete tlef.remote;
+    tlef.running = false;
+  }
+return;
+#endif
+  // init
+  const uint32_t tout = millis() + 10000; // timeout, ms
+  uint8_t nfound = 0; // n good lines found so far
+  char *bp = tlef.buf; // next buf position to use
+  tlef.l0 = NULL; // flag for sendNewValues();
+
+  // read another line, if find sat read two more and finish up
+  while(tlef.remote->connected() && nfound < 3 && millis() < tout)
+  {
+    if(tlef.remote->available())
+    {
+      char c = tlef.remote->read();
+      if(c == '\r')
+      {
+        continue;
+      }
+      if(c == '\n')
+      {
+        // show some progress
+        snprintf(user_message, user_message_size, "Reading line %d+", tlef.lineno++);
+
+        *bp++ = '\0';
+        switch(nfound)
+        {
+          case 0:
+            char sl0[50]; // copy enough that surely contains sat
+            strncpy(sl0, tlef.buf, sizeof(sl0)-1);
+            sl0[sizeof(sl0)-1] = '\0'; // insure EOS
+            scrub(sl0); // scrub the copy so l0 remains complete
+            if(strstr(sl0, tlef.sat)) // look for scrubbed sat in scrubbed l0
+            {
+              // found sat, prepare to collect TLE line 1 in l1
+              nfound++; // found name
+              tlef.l0 = tlef.buf; // l0 begins at buf
+              tlef.l1 = bp; // l1 begins at next buf position
+            }
+            else
+            {
+              return; // try next line on next call
+            }
+            break;
+          case 1:
+            //if(target->tleValidChecksum(tlef.l1)) // TODO
+            if(1) // TODO
+            {
+              // found TLE line 1, prep for line 2
+              nfound++;     // found l1
+              tlef.l2 = bp;   // l2 begins at next buf position
+            }
+            else
+            {
+              nfound = 0;     // no good afterall
+              tlef.l0 = NULL;   // reset flag for sendNewValues()
+            }
+            break;
+          case 2:
+            //if(target->tleValidChecksum(tlef.l2)) // found last line // TODO
+            if(1) // found last line // TODO
+            {
+              nfound++; // found l2
+            }
+            else
+            {
+              nfound = 0;     // no good afterall
+              tlef.l0 = NULL;   // reset flag for sendNewValues()
+            }
+            break;
+          default:
+            // can't happen ;-)
+            break;
+        }
+      }
+      else if(bp - tlef.buf < (int)(sizeof(tlef.buf)-1))
+      {
+        *bp++ = c;        // add to buf iif room, including EOS
+      }
+    }
+    else
+    {
+    // static long n;
+    // Serial.println (n++);
+    }
+  }
+
+  // get here if remote disconnected, found sat or timed out
+  if(!tlef.remote->connected())
+  {
+    snprintf(user_message, user_message_size, "TLE not found!");
+  }
+  else if(nfound == 3)
+  {
+    snprintf(user_message, user_message_size, "Found TLE: %s+", tlef.l0);
+  }
+  else
+  {
+    snprintf(user_message, user_message_size, "Remote site timed out!");
+  }
+
+  // finished regardless
+  tlef.remote->stop();
+  delete tlef.remote;
+  tlef.running = false;
 }
 
 /* op has entered manually a value to be overridden.
@@ -190,7 +386,6 @@ void Webpage::scrub(char *s)
  */
 void Webpage::overrideValue(WiFiClient client)
 {
-#if 0
   char c, buf[200]; // must be at least enough for a known-valid TLE
   uint8_t nbuf = 0; // type must be large enough to count to sizeof(buf)
 
@@ -222,7 +417,7 @@ void Webpage::overrideValue(WiFiClient client)
   *valu++ = '\0'; // replace = with 0 then valu starts at next char
   // now buf is NAME and valu is VALUE
 
-  Serial.print(F("Override: "));
+  Serial.print("Override: ");
   Serial.print(buf);
   Serial.print("=");
   Serial.println(valu);
@@ -236,7 +431,7 @@ void Webpage::overrideValue(WiFiClient client)
 
     // scan for two more lines
     uint8_t nlines = 1;
-    while(nlines < 3 && (c = readNextClientChar(client, &to)) != 0)
+    while(nlines < 3 && (c = readNextClientChar(client, &t0)) != 0)
     {
       if (c == '\n')
       {
@@ -257,8 +452,9 @@ void Webpage::overrideValue(WiFiClient client)
     }
 
     // new target!
-    target->setTLE(l1, l2, l3);
+    //target->setTLE(l1, l2, l3);
   }
+#if 0
   else if(strcmp (buf, "IP") == 0)
   {
     // op is setting a new IP, save in EEPROM for use on next reboot
@@ -285,11 +481,14 @@ void Webpage::overrideValue(WiFiClient client)
     nv->put();
     setUserMessage (F("Successfully stored new IP address in EEPROM -- reboot to engage+"));
   }
-  else if(strcmp (buf, "querySite") == 0)
+  else 
+#endif
+  if(strcmp (buf, "querySite") == 0)
   {
     // op wants to look up a target at a web site, valu is target,url
     startTLEFetch (valu);
   }
+#if 0
   else
   {
     // not ours, give to each other subsystem in turn until one accepts
@@ -306,62 +505,40 @@ void Webpage::overrideValue(WiFiClient client)
  */
 void Webpage::sendNewValues(WiFiClient client)
 {
-#if 0
   // send plain text header for NAME=VALUE pairs
   sendPlainHeader(client);
+  client.println("IP=" + WiFi.localIP().toString());
 
   // send user message
   client.print("op_message=");
-  if(user_message_F != NULL)
+  client.println(user_message);
+  
+  if(tlef.l0)
   {
-    client.print(user_message_F);
-  }
-  if(user_message_s[0])
-  {
-    client.print(user_message_s);
-  }
-  client.println();
-
-  // send our values
-  client.print("IP=");
-  for(uint8_t i = 0; i < 4; i++)
-  {
-    client.print(nv->IP[i]);
-    if(i < 3)
-    {
-      client.print(F("."));
-    }
-  }
-  client.println(F(""));
-
-  if (tlef.l0) {
-      // set newly fetched name on web page
-      client.print (F("new_TLE="));
-      client.println (tlef.l0);
-      client.println (tlef.l1);
-      client.println (tlef.l2);
-      tlef.l0 = NULL;     // just send once
+    // set newly fetched name on web page
+    client.print("new_TLE=");
+    client.println(tlef.l0);
+    client.println(tlef.l1);
+    client.println(tlef.l2);
+    tlef.l0 = NULL; // just send once
   }
 
-  client.print (F("uptime="));
-  circum->printSexa (client, millis()/1000.0/3600.0);
-  circum->printPL (client, Circum::NORMAL);
+//  client.print (F("uptime="));
+//  circum->printSexa (client, millis()/1000.0/3600.0);
+//  circum->printPL (client, Circum::NORMAL);
 
   // send whatever the other modules want to
-  circum->sendNewValues (client);
-  gimbal->sendNewValues (client);
-  sensor->sendNewValues (client);
-  target->sendNewValues (client);
-#endif
+  gps->sendNewValues(client);
+//  gimbal->sendNewValues (client);
+  imuA->sendNewValues (client);
+//  target->sendNewValues (client);
 }
 
 /* send the main page, in turn it will send us commands using XMLHttpRequest
  */
-
- 
 void Webpage::sendMainPage(WiFiClient client)
 {
-  sendCompressedHTMLHeader(client);
+  sendHTMLHeader(client, true);
   client.write(html, sizeof(html));
 }
 
@@ -369,50 +546,37 @@ void Webpage::sendMainPage(WiFiClient client)
  */
 void Webpage::sendPlainHeader(WiFiClient client)
 {
-  client.print(F(
+  client.print(
       "HTTP/1.0 200 OK \r\n"
       "Content-Type: text/plain \r\n"
       "Connection: close \r\n"
       "\r\n"
-  ));
+  );
 }
 
 /* send HTTP header for html content
  */
-void Webpage::sendHTMLHeader(WiFiClient client)
+void Webpage::sendHTMLHeader(WiFiClient client, bool compressed)
 {
-  client.print(F(
-      "HTTP/1.0 200 OK \r\n"
-      "Content-Type: text/html \r\n"
-      "Connection: close \r\n"
-      "\r\n"
-  ));
-}
-
-/* send HTTP header for html content
- */
-void Webpage::sendCompressedHTMLHeader(WiFiClient client)
-{
-  client.print(F(
-      "HTTP/1.0 200 OK \r\n"
-      "Content-Encoding: gzip \r\n"
-      "Content-Type: text/html \r\n"
-      "Connection: close \r\n"
-      "\r\n"
-  ));
+  client.print("HTTP/1.0 200 OK \r\n");
+  if(compressed)
+  {
+    client.print("Content-Encoding: gzip \r\n");
+  }
+  client.print("Content-Type: text/html \r\nConnection: close \r\n\r\n");
 }
 
 /* send empty response
  */
 void Webpage::sendEmptyResponse(WiFiClient client)
 {
-  client.print(F(
+  client.print(
       "HTTP/1.0 200 OK \r\n"
       "Content-Type: text/html \r\n"
       "Connection: close \r\n"
       "Content-Length: 0 \r\n"
       "\r\n"
-  ));
+  );
 }
 
 /* send back error 404 when requested page not found.
@@ -421,7 +585,7 @@ void Webpage::sendEmptyResponse(WiFiClient client)
 void Webpage::send404Page(WiFiClient client)
 {
   Serial.println("Sending 404");
-  client.print(F(
+  client.print(
       "HTTP/1.0 404 Not Found \r\n"
       "Content-Type: text/html \r\n"
       "Connection: close \r\n"
@@ -431,7 +595,7 @@ void Webpage::send404Page(WiFiClient client)
       "<h2>404: Not found</h2>\r\n \r\n"
       "</body> \r\n"
       "</html> \r\n"
-  ));
+  );
 }
 
 /* reboot

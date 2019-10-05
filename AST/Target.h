@@ -8,7 +8,7 @@
 
 #include "GPS.h"
 #include "IMU.h"
-//#include "Gimbal.h"
+#include "Rotator.h"
 #include "Webpage.h"
 #include "P13.h"
 

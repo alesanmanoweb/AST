@@ -23,17 +23,17 @@ Target::Target()
   nskypath = 0;
 }
 
-/* update target if valid, and move gimbal if tracking
+/* update target if valid, and move rotator if tracking
  */
 void Target::track()
 {
   // update ephemerides
   updateTopo();
 
-  // update gimbal if tracking
+  // update rotator if tracking
   if(tracking)
   {
-    //gimbal->moveToAzEl (az, el);
+    rotator->moveToAzEl (az, el);
   }
 }
 
@@ -56,14 +56,14 @@ void Target::setTrackingState(bool want_on)
 {
   if (want_on)
   {
-//    if(!gimbal->connected())
+//    if(!rotator->connected())
 //    {
-//      webpage->setUserMessage("Can not track without a gimbal!");
+//      webpage->setUserMessage("Can not track without a rotator!");
 //      tracking = false;
 //    }
-//    else if(!gimbal->calibrated())
+//    else if(!rotator->calibrated())
 //    {
-//      webpage->setUserMessage("Calibrating gimbal motor scales!");
+//      webpage->setUserMessage("Calibrating rotator motor scales!");
 //      tracking = true;
 //    }
 //    else if(!IMU->connected())
@@ -79,7 +79,7 @@ void Target::setTrackingState(bool want_on)
     }
     else if(tle_ok)
     {
-//      webpage->setUserMessage("Now tracking: ", TLE_L0, '+');
+      webpage->setUserMessage("Now tracking: ", TLE_L0, '+');
       tracking = true;
     }
     else
@@ -395,7 +395,7 @@ void Target::setTLE(char *l1, char *l2, char *l3)
     updateTopo();
     findNextPass(); // init for track()
     computeSkyPath();
-    //webpage->setUserMessage("New TLE uploaded successfully for ", TLE_L0, '+');
+    webpage->setUserMessage("New TLE uploaded successfully for ", TLE_L0, '+');
   }
   else
   {

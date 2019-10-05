@@ -6,6 +6,7 @@ Webpage *webpage;
 GPS *gps;
 IMU *imuA;
 Target *target;
+Rotator *rotator;
 
 void setup()
 {
@@ -18,6 +19,8 @@ void setup()
   imuA = new IMU();
   Serial.println("Making Target");
   target = new Target();
+  Serial.println("Making Rotator");
+  rotator = new Rotator();
 }
 
 void loop()

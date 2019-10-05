@@ -16,8 +16,7 @@ Webpage::Webpage()
   httpServer->begin();
   Serial.println(WiFi.localIP());
 
-  memset(user_message, 0, user_message_size);
-  snprintf(user_message, user_message_size, "Hello+");
+  setUserMessage("Hello+");
 
   memset(&tlef, 0, sizeof(tlef));
   tlef.running = false;
@@ -120,9 +119,14 @@ void Webpage::checkNetwork()
   client.stop();
 }
 
-void Webpage::setUserMessage(const char* msg)
+void Webpage::setUserMessage(const char* msg, const char* value, char status)
 {
-  strncpy(user_message, msg, user_message_size);
+  snprintf(user_message, user_message_size, "%s%s%c", msg, value, status);
+}
+
+void Webpage::setUserMessage(const char* msg, int value, char status)
+{
+  snprintf(user_message, user_message_size, "%s%d%c", msg, value, status);
 }
 
 /* try to connect to wifi using creds we have in EEPROM
@@ -210,7 +214,7 @@ void Webpage::startTLEFetch(char *query_text)
   char *url = strchr(query_text, ',');
   if(!url)
   {
-    snprintf(user_message, user_message_size, "Invalid querySite string: %s!", query_text);
+    setUserMessage("Invalid querySite string: ", query_text, '!');
     return;
   }
   *url++ = '\0'; // overwrite ',' with EOS for sat then move to start of url
@@ -225,7 +229,7 @@ void Webpage::startTLEFetch(char *query_text)
   char *path = strchr(url, '/');
   if(!path)
   {
-    snprintf(user_message, user_message_size, "Invalid querySite URL: %s!", url);
+    setUserMessage("Invalid querySite URL: ", url, '!');
     return;
   }
   *path++ = '\0'; // overwrite '/' with EOS for server then move to start of path
@@ -234,7 +238,7 @@ void Webpage::startTLEFetch(char *query_text)
   tlef.remote = new WiFiClient();
   if(!tlef.remote->connect(url, 80))
   {
-    snprintf(user_message, user_message_size, "Failed to connect to %s!", url);
+    setUserMessage("Failed to connect to ", url, '!');
     delete tlef.remote;
     return;
   }
@@ -299,7 +303,8 @@ return;
       if(c == '\n')
       {
         // show some progress
-        snprintf(user_message, user_message_size, "Reading line %d+", tlef.lineno++);
+        tlef.lineno++;
+        setUserMessage("Reading line ", tlef.lineno, '+');
 
         *bp++ = '\0';
         switch(nfound)
@@ -322,8 +327,7 @@ return;
             }
             break;
           case 1:
-            //if(target->tleValidChecksum(tlef.l1)) // TODO
-            if(1) // TODO
+            if(target->tleValidChecksum(tlef.l1))
             {
               // found TLE line 1, prep for line 2
               nfound++;     // found l1
@@ -336,8 +340,7 @@ return;
             }
             break;
           case 2:
-            //if(target->tleValidChecksum(tlef.l2)) // found last line // TODO
-            if(1) // found last line // TODO
+            if(target->tleValidChecksum(tlef.l2)) // found last line
             {
               nfound++; // found l2
             }
@@ -367,15 +370,15 @@ return;
   // get here if remote disconnected, found sat or timed out
   if(!tlef.remote->connected())
   {
-    snprintf(user_message, user_message_size, "TLE not found!");
+    setUserMessage("TLE not found!");
   }
   else if(nfound == 3)
   {
-    snprintf(user_message, user_message_size, "Found TLE: %s+", tlef.l0);
+    setUserMessage("Found TLE: ", tlef.l0, '+');
   }
   else
   {
-    snprintf(user_message, user_message_size, "Remote site timed out!");
+    setUserMessage("Remote site timed out!");
   }
 
   // finished regardless
@@ -494,8 +497,7 @@ void Webpage::overrideValue(WiFiClient client)
   else
   {
     // not ours, give to each other subsystem in turn until one accepts
-    //if(!gps->overrideValue(buf, valu) && !gimbal->overrideValue(buf, valu) && !target->overrideValue(buf, valu) && !imuA->overrideValue(buf, valu))
-    if(!gps->overrideValue(buf, valu) && !target->overrideValue(buf, valu) && !imuA->overrideValue(buf, valu))
+    if(!gps->overrideValue(buf, valu) && !rotator->overrideValue(buf, valu) && !target->overrideValue(buf, valu) && !imuA->overrideValue(buf, valu))
     {
       setUserMessage("Bug: unknown override -- see Serial Monitor!");
     }
@@ -509,6 +511,14 @@ void Webpage::sendNewValues(WiFiClient client)
   // send plain text header for NAME=VALUE pairs
   sendPlainHeader(client);
   client.println("IP=" + WiFi.localIP().toString());
+  client.print("Sys_freemem=");
+  client.println(123);
+  client.print("Sys_stack=");
+  client.println(456);
+  client.print("Sys_heap=");
+  client.print(ESP.getFreeHeap());
+  client.print(" / ");
+  client.println(ESP.getHeapSize());
 
   // send user message
   client.print("op_message=");
@@ -530,7 +540,7 @@ void Webpage::sendNewValues(WiFiClient client)
 
   // send whatever the other modules want to
   gps->sendNewValues(client);
-//  gimbal->sendNewValues (client);
+  rotator->sendNewValues(client);
   imuA->sendNewValues(client);
   target->sendNewValues(client);
 }

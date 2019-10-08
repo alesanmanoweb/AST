@@ -5,6 +5,8 @@
 
 Rotator::Rotator()
 {
+  precision = 5;
+  
   pinMode(Ai1, OUTPUT);
   pinMode(Ai2, OUTPUT);
   digitalWrite(Ai1, LOW);
@@ -84,7 +86,7 @@ void Rotator::moveToAzEl(float az_t, float el_t)
   target_y = el_t;
   int count = 0;
   imuA->getAzEl(&x, &y);
-  while(abs(target_y - y) >= 5)
+  while(abs(target_y - y) >= precision)
   {
     Serial.printf("Adjusting elevation: Y=%d; T_Y=%d; count=%d\n", (int)y, target_y, count);
     if(y < target_y)
@@ -106,7 +108,7 @@ void Rotator::moveToAzEl(float az_t, float el_t)
   }
 
   count = 0;
-  while(abs(target_x - x) >= 5 && (target_x + 360 - x) >= 5)
+  while(abs(target_x - x) >= precision && (target_x + 360 - x) >= precision)
   {
     Serial.printf("X=%03d; T_X=%d; count=%d\n", (int)x, target_x, count);
     int a = x;
@@ -143,5 +145,42 @@ void Rotator::sendNewValues(WiFiClient client)
 
 bool Rotator::overrideValue(char *name, char *value)
 {
+  // precisione
+  // duty
+  Serial.printf("ROTATOR: Name:%s Value:%s\n",name, value);
+  if(!strcmp(name, "R_Move"))
+  {
+    if(!strcmp(value, "Up"))
+    {
+      elevationUp();
+      elevationMove(100);
+    }
+    else if(!strcmp(value, "Down"))
+    {
+      elevationDown();
+      elevationMove(100);
+    }
+    else if(!strcmp(value, "Left"))
+    {
+      azimuthLeft();
+      azimuthMove(100);
+    }
+    else if(!strcmp(value, "Right"))
+    {
+      azimuthRight();
+      azimuthMove(100);
+    }
+    return true;
+  }
+  else if(!strcmp(name, "R_Precision"))
+  {
+    int new_precision = atoi(value);
+    if(new_precision > 0 && new_precision < 90)
+    {
+      precision = new_precision;
+    }
+    Serial.printf("New precision: %d\n", precision);
+    return true;
+  }
   return false;
 }

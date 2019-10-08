@@ -120,8 +120,8 @@
 		font-size: 14px;
 		font-weight: bold;
 	}
-    </style>
-    <script>
+	</style>
+	<script>
 	// labels on track button determine state
 	var tracking_on_label = 'Stop Tracking';
 	var tracking_off_label = 'Start Tracking';
@@ -141,6 +141,7 @@
 
 	// called when user clicks on the sky path, send Az/El as if override
 	function onSkyPathClick(event) {
+		console.log("click: " + event.clientX + ' ' + event.clientY);
 		var cvs = document.getElementById ('skypath');
 		var rect = cvs.getBoundingClientRect();
 		var cvsw = rect.right - rect.left;
@@ -151,6 +152,7 @@
 		var az = (180.0/Math.PI*Math.atan2(skye, skyn)+360) % 360;
 		var el = 90*(1-Math.hypot(skye,skyn)/hznr);
 
+		console.log("coord: az=" + az + ' el=' + el);
 		POSTNV ('T_Az', az);
 		POSTNV ('T_El', el);
 	}
@@ -178,8 +180,6 @@
 						plotSkyPath (nv[1]);
 					} else if (nv[0] == 'tracking') {
 						setTrackingButton (nv[1] == 'On' ? tracking_on_label : tracking_off_label);
-					} else if (nv[0] == 'IP') {
-						setNewIP (nv[1]);
 					} else if (nv[0] == 'GPS_Enable') {
 						setGPSEnable(nv[1]);
 					} else if (nv[0] == 'SS_Save') {
@@ -372,7 +372,6 @@
 
 	// called when op wants to read a TLE from a file
 	function handleFileSelect(file) {
-
 		// get target
 		var target = byId('target_name').value.trim();
 		if (!target || target.length<1) {
@@ -385,37 +384,35 @@
 
 		// define callback called after reader is triggered
 		reader.onload = function(event) {
-		var fr = event.target; // FileReader
-		var text = fr.result; // file text as string
+			var fr = event.target; // FileReader
+			var text = fr.result; // file text as string
 
-		// scan file looking for named target, allowing a very generous match
-		var target_scrubbed = target.replace(/\W/g,'').toUpperCase();
-		var lines = text.replace(/\r/g,'').split(/\n/);
-		for (i = 0; i < lines.length; i++) {
-			var line = lines[i].trim();
-			var line_scrubbed = line.replace(/\W/g,'').toUpperCase();
-			if (line_scrubbed.indexOf(target_scrubbed) >= 0) {
-				if (i < lines.length-2) {
-					var l1 = lines[i+1].trim();
-					var l2 = lines[i+2].trim();
-					var candidate = line + '\n' + l1 + '\n' + l2;
-					var telok = validateTLE(candidate);
-					if (telok != null)
-						alert ('Found "' + target + '" in ' + file.name + ' but ' + telok);
-					else
-						byId('new_TLE').value = candidate;
-				} else
-					alert ('Found "' + target + '" in ' + file.name + ' but not followed by a valid TLE');
-				return;
+			// scan file looking for named target, allowing a very generous match
+			var target_scrubbed = target.replace(/\W/g,'').toUpperCase();
+			var lines = text.replace(/\r/g,'').split(/\n/);
+			for (i = 0; i < lines.length; i++) {
+				var line = lines[i].trim();
+				var line_scrubbed = line.replace(/\W/g,'').toUpperCase();
+				if (line_scrubbed.indexOf(target_scrubbed) >= 0) {
+					if (i < lines.length-2) {
+						var l1 = lines[i+1].trim();
+						var l2 = lines[i+2].trim();
+						var candidate = line + '\n' + l1 + '\n' + l2;
+						var telok = validateTLE(candidate);
+						if (telok != null)
+							alert ('Found "' + target + '" in ' + file.name + ' but ' + telok);
+						else
+							byId('new_TLE').value = candidate;
+					} else
+						alert ('Found "' + target + '" in ' + file.name + ' but not followed by a valid TLE');
+					return;
+				}
 			}
-		}
 		alert ('Can not find "' + target + '" in file ' + file.name);
 		};
 		// read file, triggers onload when complete
 		reader.readAsText(file);
 	}
-
-
 
 	// send new value in response to operator typing an override value.
 	function onOvd(event) {
@@ -455,39 +452,15 @@
 	function onGPSEnable() {
 		POSTNV ('GPS_Enable', 'true');
 	}
+	
+	// called to move the rotator manually
+	function onRotatorMove(direction) {
+		POSTNV ('R_Move', direction);
+	}
 
 	// called to save Sensor calibration to EEPROM
 	function onSSSave() {
 		POSTNV ('SS_Save', 'true');
-	}
-
-	// called to upload a new IP, either with Set (k==0) or by typing Enter (k==1)
-	function onIP (k,event) {
-		if (k && event.keyCode != 13)
-			return;	// wait for Enter
-		var ip = byId ('IP').value.trim();
-		var octets = ip.split(/\./);
-		for (var i = 0; i < octets.length; i++) {
-			var o = octets[i];
-			if (!o.match(/^\d+$/))
-				break;
-			var v = parseInt(o);
-			if (v < 0 || v > 255)
-				break;
-		}
-		if (octets.length != 4 || i < octets.length)
-			alert (ip + ': not a valid IP address format');
-		else
-			POSTNV ('IP', ip);
-	}
-
-	// called to display the current IP.  N.B. leave IP text alone if it or Set currently has focus
-	function setNewIP (ip) {
-		var ip_text = byId('IP')
-		var ip_set  = byId('IP-set')
-		var focus = document.activeElement;
-		if (focus != ip_text && focus != ip_set)
-			ip_text.value = ip;
 	}
 
 	// called to set visibility of GPS_Enable
@@ -606,9 +579,7 @@
 		<table style='border:none;' width='100%'>
 			<tr>
 			<td width='25%' style='text-align:left; border:none' >
-				IP:
-				<input id='IP' type='text' onkeypress='onIP(1,event)' size='14' > </input>
-				<button id='IP-set' onclick='onIP(0,event)'>Change</button
+				IP: <label id='IP' style='padding:10px;'  ></label>
 			</td>
 			<td width='50%' style='border:none' >
 				<label id='title-label' title='Version VVVV' >Autonomous Satellite Tracker</label>
@@ -683,7 +654,7 @@
 
 	<tr>
 		<td colspan='7' style='text-align:center; border-top-style:none; border-bottom-style:none; padding-bottom:10px' >
-			<canvas id="skypath" width='300' heigh='300' onclick='onSkyPathClick()'> </canvas>
+			<canvas id='skypath' width='300' height='300' onclick='onSkyPathClick(event)' style='border: 1px red solid;'> </canvas>
 		</td>
 	</tr>
 
@@ -903,47 +874,45 @@
 		<label id='G_Status'></label>
 		</th>
 
-		<td class='datum-label' > Servo 1 pulse length, &micro;s </td>
-		<td id='G_Mot1Pos' class='datum' > </td>
+		<td class='datum-label' > Tracking precision, degrees </td>
+		<td id='R_Precision' class='datum' > </td>
 		<td>
-		<input id='G_Mot1Pos_Ovd' type='text' onkeypress='onOvd(event)' class='override' >
+		<input id='R_Precision_Ovd' type='text' onkeypress='onOvd(event)' class='override' >
 		</input>
 		</td>
 
-		<td class='datum-label' > Servo 2 pulse length, &micro;s </td>
-		<td id='G_Mot2Pos' class='datum' > </td>
+		<td class='datum-label' >  </td>
+		<td id='' class='datum' > </td>
 		<td>
-		<input id='G_Mot2Pos_Ovd' type='text' onkeypress='onOvd(event)' class='override' >
-		</input>
 		</td>
 	</tr>
 	<tr class='odd-row' >
-		<td class='datum-label' > Servo 1 minimum pulse </td>
-		<td id='G_Mot1Min' class='datum' > </td>
+		<td class='datum-label' > Move manually </td>
+		<td> </td>
 		<td>
-		<input id='G_Mot1Min_Ovd' type='text' onkeypress='onOvd(event)' class='override' >
+		<input id='R_Up' type='button' value='Up' onclick='onRotatorMove("Up")' class='override' >
 		</input>
 		</td>
 
-		<td class='datum-label' > Servo 2 minimum pulse </td>
-		<td id='G_Mot2Min' class='datum' > </td>
+		<td> </td>
+		<td > </td>
 		<td>
-		<input id='G_Mot2Min_Ovd' type='text' onkeypress='onOvd(event)' class='override' >
+		<input id='R_Left' type='button' value='Left' onclick='onRotatorMove("Left")' class='override' >
 		</input>
 		</td>
 	</tr>
 	<tr class='even-row' >
-		<td class='datum-label' > Servo 1 maximum pulse </td>
-		<td id='G_Mot1Max' class='datum' > </td>
+		<td> </td>
+		<td> </td>
 		<td>
-		<input id='G_Mot1Max_Ovd' type='text' onkeypress='onOvd(event)' class='override' >
+		<input id='R_Down' type='button' value='Down' onclick='onRotatorMove("Down")' class='override' >
 		</input>
 		</td>
 
-		<td class='datum-label' > Servo 2 maximum pulse </td>
-		<td id='G_Mot2Max' class='datum' > </td>
+		<td> </td>
+		<td> </td>
 		<td>
-		<input id='G_Mot2Max_Ovd' type='text' onkeypress='onOvd(event)' class='override' >
+		<input id='R_Right' type='button' value='Right' onclick='onRotatorMove("Right")' class='override' >
 		</input>
 		</td>
 	</tr>

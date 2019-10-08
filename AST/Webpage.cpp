@@ -269,21 +269,6 @@ void Webpage::resumeTLEFetch()
     return;
   }
 
-#if 0
-while(tlef.remote->available())
-  {
-    char c = tlef.remote->read();
-    Serial.write(c);
-  }
-
-  if(!tlef.remote->connected())
-  {
-    tlef.remote->stop();
-    delete tlef.remote;
-    tlef.running = false;
-  }
-return;
-#endif
   // init
   const uint32_t tout = millis() + 10000; // timeout, ms
   uint8_t nfound = 0; // n good lines found so far
@@ -486,7 +471,7 @@ void Webpage::overrideValue(WiFiClient client)
       octet++;        // point to first char after .
     }
     nv->put();
-    setUserMessage (F("Successfully stored new IP address in EEPROM -- reboot to engage+"));
+    setUserMessage("Successfully stored new IP address in EEPROM -- reboot to engage+");
   }
 #endif
   else if(strcmp (buf, "querySite") == 0)
@@ -515,10 +500,7 @@ void Webpage::sendNewValues(WiFiClient client)
   client.println(123);
   client.print("Sys_stack=");
   client.println(456);
-  client.print("Sys_heap=");
-  client.print(ESP.getFreeHeap());
-  client.print(" / ");
-  client.println(ESP.getHeapSize());
+  client.printf("Sys_heap= (%d/%d)kB\n", ESP.getFreeHeap() / 1024, ESP.getHeapSize() / 1024);
 
   // send user message
   client.print("op_message=");

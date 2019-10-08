@@ -35,6 +35,8 @@ class Rotator
     static constexpr size_t NMOTORS = 2; // not easily changed
     motor_interface motor[NMOTORS];
 
+    int precision;
+
     void azimuthLeft();
     void azimuthRight();
     void azimuthMove(int d);
@@ -54,8 +56,8 @@ class Rotator
     void moveToAzEl(float az_t, float el_t);
     void sendNewValues(WiFiClient client);
     bool overrideValue(char *name, char *value);
-//    bool connected() { return true; };
-//    bool calibrated() { return (init_step >= N_INIT_STEPS); }
+    bool connected() { return true; };
+    bool calibrated() { return true; }
 };
 
 extern Rotator *rotator;

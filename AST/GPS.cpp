@@ -209,9 +209,9 @@ bool GPS::overrideValue(char *name, char *value)
     }
     setnow(year, month, day, h, m, s); // set system time to new value
     time_overridden = true; // set flag that op has overridden GPS time
-//    target->updateTopo(); // update target to new time
-//    target->findNextPass(); // update pass from now
-//    target->computeSkyPath(); // and show
+    target->updateTopo(); // update target to new time
+    target->findNextPass(); // update pass from now
+    target->computeSkyPath(); // and show
     return true;
   }
   if(!strcmp(name, "GPS_Date"))
@@ -232,9 +232,9 @@ bool GPS::overrideValue(char *name, char *value)
     }
     setnow(year, month, day, h, m, s); // set system time to new value
     time_overridden = true; // set flag that op has overridden GPS time
-//    target->updateTopo(); // update target to new time
-//    target->findNextPass(); // update pass from now
-//    target->computeSkyPath(); // and show
+    target->updateTopo(); // update target to new time
+    target->findNextPass(); // update pass from now
+    target->computeSkyPath(); // and show
     return true;
   }
   if(!strcmp (name, "GPS_Lat"))
@@ -242,9 +242,9 @@ bool GPS::overrideValue(char *name, char *value)
     latitude = atof(value);
     newObserver(latitude, longitude, altitude);
     loc_overridden = true; // set flag that op has overridden GPS loc
-//    target->updateTopo(); // update target to new time
-//    target->findNextPass(); // update pass from here
-//    target->computeSkyPath(); // and show
+    target->updateTopo(); // update target to new time
+    target->findNextPass(); // update pass from here
+    target->computeSkyPath(); // and show
     magdecl(latitude, longitude, altitude, decimalYear(), &magdeclination);
     return true;
   }
@@ -253,9 +253,9 @@ bool GPS::overrideValue(char *name, char *value)
     longitude = atof(value);
     newObserver(latitude, longitude, altitude);
     loc_overridden = true; // set flag that op has overridden GPS loc
-//    target->updateTopo(); // update target to new time
-//    target->findNextPass(); // update pass from here
-//    target->computeSkyPath(); // and show
+    target->updateTopo(); // update target to new time
+    target->findNextPass(); // update pass from here
+    target->computeSkyPath(); // and show
     magdecl(latitude, longitude, altitude, decimalYear(), &magdeclination);
     return true;
   }
@@ -264,9 +264,9 @@ bool GPS::overrideValue(char *name, char *value)
     altitude = atof(value);
     newObserver(latitude, longitude, altitude);
     loc_overridden = true; // set flag that op has overridden GPS loc
-//    target->updateTopo(); // update target to new time
-//    target->findNextPass(); // update pass from here
-//    target->computeSkyPath(); // and show
+    target->updateTopo(); // update target to new time
+    target->findNextPass(); // update pass from here
+    target->computeSkyPath(); // and show
     magdecl(latitude, longitude, altitude, decimalYear(), &magdeclination);
     return true;
   }

@@ -34,6 +34,3 @@ void loop()
   // follow the target
   target->track();
 }
-
-// controllare logging, tutti i // e #if etc
-// controllo motori

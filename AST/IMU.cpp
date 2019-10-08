@@ -74,7 +74,7 @@ bool IMU::overrideValue(char *name, char *value)
   if(!strcmp(name, "SS_Save"))
   {
     saveCalibration();
-    //webpage->setUserMessage("Sensor calibrations saved to EEPROM+");
+    webpage->setUserMessage("Sensor calibration saved to EEPROM+");
     return true;
   }
   return false;
@@ -193,6 +193,7 @@ void IMU::installCalibration()
   }
   if(i == NBNO055CALBYTES)
   {
+    Serial.println("No IMU calibration found!");
     return; // all zeros can't be valid
   }
 
@@ -201,14 +202,16 @@ void IMU::installCalibration()
   delay(25);
 
   // Serial.println (F("Restoring sensor values"));
+  Serial.print("IMU calibration data: ");
   for(i = 0; i < NBNO055CALBYTES; i++)
   {
     Wire.beginTransmission((uint8_t)BNO055_I2CADDR);
     Wire.write((Adafruit_BNO055::adafruit_bno055_reg_t)((uint8_t)(Adafruit_BNO055::ACCEL_OFFSET_X_LSB_ADDR) + i));
     Wire.write(cal_data[i]);
-    // Serial.println (nv->BNO055cal[i]);
+    Serial.printf("%02x ", cal_data[i]);
     Wire.endTransmission();
   }
+  Serial.println();
 
   // restore NDOF mode
   bno->setMode(Adafruit_BNO055::OPERATION_MODE_NDOF);

@@ -56,18 +56,17 @@ void Target::setTrackingState(bool want_on)
 {
   if (want_on)
   {
-//    if(!rotator->connected())
-//    {
-//      webpage->setUserMessage("Can not track without a rotator!");
-//      tracking = false;
-//    }
-//    else if(!rotator->calibrated())
-//    {
-//      webpage->setUserMessage("Calibrating rotator motor scales!");
-//      tracking = true;
-//    }
-//    else if(!IMU->connected())
-    if(!imuA->connected())
+    if(!rotator->connected())
+    {
+      webpage->setUserMessage("Can not track without a rotator!");
+      tracking = false;
+    }
+    else if(!rotator->calibrated())
+    {
+      webpage->setUserMessage("Calibrating rotator motor scales!");
+      tracking = true;
+    }
+    else if(!imuA->connected())
     {
       webpage->setUserMessage("Can not track without a position sensor!");
       tracking = false;

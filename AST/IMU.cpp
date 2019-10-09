@@ -62,7 +62,7 @@ bool IMU::calibrated(uint8_t &sys, uint8_t &gyro, uint8_t &accel, uint8_t &mag)
 void IMU::getAzEl(float *azp, float *elp)
 {
   imu::Vector<3> euler = bno->getVector(Adafruit_BNO055::VECTOR_EULER);
-  *azp = fmod(euler.x() + gps->magdeclination + 540, 360);
+  *azp = fmod(euler.x() + 90 + gps->magdeclination + 540, 360);
   *elp = -euler.y();
 }
 

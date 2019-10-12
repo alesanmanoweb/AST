@@ -140,7 +140,8 @@ void Rotator::moveToAzEl(float az_t, float el_t)
 
 void Rotator::sendNewValues(WiFiClient client)
 {
-  
+  client.print("R_Precision=");
+  client.println(precision);
 }
 
 bool Rotator::overrideValue(char *name, char *value)

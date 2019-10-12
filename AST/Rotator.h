@@ -18,7 +18,11 @@
 #define Bi1 27
 #define Bi2 21
 
-#define duty 180
+#define pwm_min_duty_el 128
+#define pwm_max_duty_el 240
+#define pwm_min_duty_az 128
+#define pwm_max_duty_az 180
+//#define duty 180
 
 struct motor_interface
 {
@@ -39,17 +43,18 @@ class Rotator
 
     void azimuthLeft();
     void azimuthRight();
-    void azimuthMove(int d);
+    void azimuthMove(int diff);
+    void azimuthStop();
 
     void elevationUp();
     void elevationDown();
-    void elevationMove(int d);
+    void elevationMove(int diff);
+    void elevationStop();
 
-    bool moving_right;
     // search info
-//    void calibrate(float &az_s, float &el_s);
-//    void seekTarget(float& az_t, float& el_t, float& az_s, float& el_s);
-//    float azDist(float &from, float &to);
+    // void calibrate(float &az_s, float &el_s);
+    // void seekTarget(float& az_t, float& el_t, float& az_s, float& el_s);
+    // float azDist(float &from, float &to);
 
   public:
     Rotator();

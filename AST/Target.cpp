@@ -171,7 +171,7 @@ void Target::sendNewValues (WiFiClient client)
       client.println("??? !");
     }
 
-    char *transin, *transaz, *transel;
+    char * transin, *transaz, *transel;
     client.print("T_NextTrans=");
     if(trans_ok)
     {

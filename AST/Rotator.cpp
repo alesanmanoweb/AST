@@ -32,29 +32,35 @@ Rotator::Rotator()
 
 void Rotator::azimuthLeft()
 {
-  moving_right = false;
   digitalWrite(Ai1, LOW);
   digitalWrite(Ai2, HIGH);
 }
 
 void Rotator::azimuthRight()
 {
-  moving_right = true;
   digitalWrite(Ai2, LOW);
   digitalWrite(Ai1, HIGH);
 }
 
-void Rotator::azimuthMove(int d)
+void Rotator::azimuthMove(int diff)
 {
-  ledcWrite(PWMA, duty);
-  if(moving_right)
-    elevationDown();
+  //int duty = (pwm_max_duty_az - pwm_min_duty_az) * () + pwm_min_duty_az;
+  int duty;
+  if(diff > 45)
+  {
+    duty = pwm_max_duty_az;
+  }
   else
-    elevationUp();
-  ledcWrite(PWMB, duty);//*1000/960);
-  delay(d);
+  {
+    duty = (pwm_max_duty_az - pwm_min_duty_az) * diff / 45 + pwm_min_duty_az;
+  }
+  
+  ledcWrite(PWMA, duty);
+}
+  
+void Rotator::azimuthStop()
+{
   ledcWrite(PWMA, 0);
-  ledcWrite(PWMB, 0);
 }
   
 void Rotator::elevationDown()
@@ -69,10 +75,23 @@ void Rotator::elevationUp()
   digitalWrite(Bi1, HIGH);
 }
 
-void Rotator::elevationMove(int d)
+void Rotator::elevationMove(int diff)
 {
+  int duty;
+  if(diff > 45)
+  {
+    duty = pwm_max_duty_el;
+  }
+  else
+  {
+    duty = (pwm_max_duty_el - pwm_min_duty_el) * diff / 45 + pwm_min_duty_el;
+  }
+  
   ledcWrite(PWMB, duty);
-  delay(d);
+}
+
+void Rotator::elevationStop()
+{
   ledcWrite(PWMB, 0);
 }
 
@@ -85,62 +104,80 @@ void Rotator::moveToAzEl(float az_t, float el_t)
   target_x = az_t;
   target_y = el_t;
   int count = 0;
-  imuA->getAzEl(&x, &y);
-  while(abs(target_y - y) >= precision)
-  {
-    Serial.printf("Adjusting elevation: Y=%d; T_Y=%d; count=%d\n", (int)y, target_y, count);
-    if(y < target_y)
-    {
-      // go up
-      elevationUp();
-      elevationMove(15);
-    }
-    else if(y > target_y)
-    {
-      // go down
-      elevationDown();
-      elevationMove(15);
-    }
-    if(count++ >= 20)
-      break;
-    delay(100);
-    imuA->getAzEl(&x, &y);
-  }
 
-  count = 0;
-  while(abs(target_x - x) >= precision && (target_x + 360 - x) >= precision)
+  bool el_ok = false;
+  bool az_ok = false;
+
+  while(!el_ok || !az_ok)
   {
-    Serial.printf("X=%03d; T_X=%d; count=%d\n", (int)x, target_x, count);
-    int a = x;
-    int b = target_x;
-    if(abs(a-b) > 180)
+    imuA->getAzEl(&x, &y);
+
+    int diff_y = abs(target_y - y);
+    if( diff_y >= precision)
     {
-      int temp = a;
-      a = b;
-      b = temp;
-    }
-    if(a < b)
-    {
-      // go left, increase x
-      azimuthLeft();
-      azimuthMove(15);
+      //Serial.printf("Adjusting elevation: Y=%d; T_Y=%d; count=%d\n", (int)y, target_y, count);
+      if(y < target_y)
+      {
+        // go up
+        elevationUp();
+      }
+      else if(y > target_y)
+      {
+        // go down
+        elevationDown();
+      }
+      elevationMove(diff_y);
+      el_ok = false;
     }
     else
     {
-      // go right, decrease x
-      azimuthRight();
-      azimuthMove(15);
+      elevationStop();
+      el_ok = true;
     }
-    if(count++ >= 20)
+
+
+    if(abs(target_x - x) >= precision && (target_x + 360 - x) >= precision)
+    {
+      //Serial.printf("Adjusting azimuth    X=%03d; T_X=%d; count=%d\n", (int)x, target_x, count);
+      int a = x;
+      int b = target_x;
+      if(abs(a-b) > 180)
+      {
+        int temp = a;
+        a = b;
+        b = temp;
+      }
+      if(a < b)
+      {
+        // go left, increase x
+        azimuthLeft();
+      }
+      else
+      {
+        // go right, decrease x
+        azimuthRight();
+      }
+      azimuthMove(abs(a - b));
+      az_ok = false;
+    }
+    else
+    {
+      azimuthStop();
+      az_ok = true;
+    }
+
+    if(count++ >= 200)
+    {
+      Serial.println("Count break!!!!!!!!!!!!");
       break;
-    delay(100);
-    imuA->getAzEl(&x, &y);
+    }
   }
+  Serial.printf("Count=%d\n", count);
 }
 
 void Rotator::sendNewValues(WiFiClient client)
 {
-  
+
 }
 
 bool Rotator::overrideValue(char *name, char *value)
@@ -153,22 +190,30 @@ bool Rotator::overrideValue(char *name, char *value)
     if(!strcmp(value, "Up"))
     {
       elevationUp();
-      elevationMove(100);
+      elevationMove(45);
+      delay(100);
+      elevationStop();
     }
     else if(!strcmp(value, "Down"))
     {
       elevationDown();
-      elevationMove(100);
+      elevationMove(15);
+      delay(100);
+      elevationStop();
     }
     else if(!strcmp(value, "Left"))
     {
       azimuthLeft();
-      azimuthMove(100);
+      azimuthMove(15);
+      delay(100);
+      azimuthStop();
     }
     else if(!strcmp(value, "Right"))
     {
       azimuthRight();
-      azimuthMove(100);
+      azimuthMove(45);
+      delay(100);
+      azimuthStop();
     }
     return true;
   }
